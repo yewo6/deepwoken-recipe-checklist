@@ -1,1 +1,2 @@
-Hie, use for recipes :)
+Hi, use for recipes :)
+
