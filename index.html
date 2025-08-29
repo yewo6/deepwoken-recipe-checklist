@@ -33,7 +33,7 @@
       overflow-y: auto;
     }
     h1 { font-size: 1.8rem; margin-bottom: 10px; }
-    h2 { font-size: 1.4rem; margin-bottom: 10px; }
+    h2 { font-size: 1.4rem; margin-bottom: 10px; display: flex; align-items: center; gap: 10px; }
     textarea {
       width: 100%;
       height: 100px;
@@ -74,6 +74,9 @@
     .completed-section {
       border-left: 1px solid #444;
       padding-left: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
     }
     .logo {
       position: fixed;
@@ -91,6 +94,18 @@
       font-size: 0.9rem;
       color: #ccc;
     }
+    .footer-text {
+      position: fixed;
+      bottom: 20px;
+      left: 20px;
+      font-size: 0.8rem;
+      color: #aaa;
+    }
+    .completed-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
   </style>
 </head>
 <body>
@@ -101,8 +116,8 @@ Placeholder 2
 Completed Placeholder</textarea>
 
     <div class="recipe-type">
-      <label><input type="checkbox" id="twoItem" checked> 2-item recipes</label>
-      <label><input type="checkbox" id="threeItem" checked> 3-item recipes</label>
+      <label><input type="checkbox" id="twoItem" checked> 2-Item Recipes</label>
+      <label><input type="checkbox" id="threeItem" checked> 3-Item Recipes</label>
     </div>
 
     <h2>Filter by Item</h2>
@@ -111,16 +126,20 @@ Completed Placeholder</textarea>
 
   <div class="content">
     <section>
-      <h2>Crafting Checklist <span id="recipeCount" class="item-count">(0) / Completed (0)</span></h2>
+      <h2>Crafting Checklist <span id="incompleteCount" class="item-count">(0)</span></h2>
       <div class="list" id="mainList"></div>
     </section>
     <section class="completed-section">
-      <h2>Completed</h2>
+      <div class="completed-header">
+        <h2 style="margin:0;">Completed <span id="completedCount" class="item-count">(0)</span></h2>
+        <button id="clearAll">Clear All</button>
+      </div>
       <div class="list" id="completedList"></div>
     </section>
   </div>
 
   <img src="logo.png" alt="Logo" class="logo">
+  <div class="footer-text">Crafting Checklist © 2025 - @yerow6</div>
 
   <script>
     const itemInput = document.getElementById('itemInput');
@@ -130,11 +149,18 @@ Completed Placeholder</textarea>
     const twoItemCheckbox = document.getElementById('twoItem');
     const threeItemCheckbox = document.getElementById('threeItem');
     const itemCountSpan = document.getElementById('itemCount');
-    const recipeCountSpan = document.getElementById('recipeCount');
+    const completedCountSpan = document.getElementById('completedCount');
+    const incompleteCountSpan = document.getElementById('incompleteCount');
+    const clearAllBtn = document.getElementById('clearAll');
 
     let items = [];
     let recipes = [];
     let hiddenItems = new Set();
+
+    const savedItems = localStorage.getItem('craftingItems');
+    if (savedItems) itemInput.value = savedItems;
+
+    const savedCompleted = JSON.parse(localStorage.getItem('completedRecipes') || '{}');
 
     function generateRecipes() {
       recipes = [];
@@ -162,7 +188,7 @@ Completed Placeholder</textarea>
         const btn = document.createElement('button');
         btn.textContent = item;
         btn.addEventListener('click', () => toggleItemFilter(item, btn));
-        if(hiddenItems.has(item)) btn.classList.add('crossed');
+        if (hiddenItems.has(item)) btn.classList.add('crossed');
         itemButtons.appendChild(btn);
       });
     }
@@ -187,7 +213,7 @@ Completed Placeholder</textarea>
           div.classList.remove('hidden');
         }
       });
-      updateRecipeCount();
+      updateCounts();
     }
 
     function renderRecipes() {
@@ -198,10 +224,14 @@ Completed Placeholder</textarea>
         const div = document.createElement('label');
         div.className = 'recipe';
         div.dataset.items = recipe.join(',');
+
         const cb = document.createElement('input');
         cb.type = 'checkbox';
-        cb.checked = recipe.includes('Completed Placeholder'); // auto-complete
+
+        const key = recipe.join(',');
+        cb.checked = savedCompleted[key] || recipe.includes('Completed Placeholder');
         cb.addEventListener('change', () => moveRecipe(div, cb));
+
         div.appendChild(cb);
         const span = document.createElement('span');
         span.textContent = recipe.join(' + ');
@@ -214,27 +244,31 @@ Completed Placeholder</textarea>
         }
       });
       updateRecipeVisibility();
+      updateCounts();
     }
 
     function moveRecipe(div, checkbox) {
+      const key = div.dataset.items;
       if (checkbox.checked) {
         completedList.appendChild(div);
+        savedCompleted[key] = true;
       } else {
         mainList.appendChild(div);
+        savedCompleted[key] = false;
       }
-      updateRecipeCount();
+      localStorage.setItem('completedRecipes', JSON.stringify(savedCompleted));
+      updateCounts();
     }
 
     function updateItemCount() {
       itemCountSpan.textContent = `(${items.length})`;
     }
 
-    function updateRecipeCount() {
-      const visibleCount = Array.from(mainList.children)
-        .filter(div => !div.classList.contains('hidden')).length;
-      const completedCount = completedList.children.length;
-      
-      recipeCountSpan.textContent = `(${visibleCount}) / Completed (${completedCount})`;
+    function updateCounts() {
+      const completed = completedList.querySelectorAll('.recipe:not(.hidden)').length;
+      const incomplete = mainList.querySelectorAll('.recipe:not(.hidden)').length;
+      completedCountSpan.textContent = `(${completed})`;
+      incompleteCountSpan.textContent = `(${incomplete})`;
     }
 
     function updateAll() {
@@ -243,15 +277,21 @@ Completed Placeholder</textarea>
       generateRecipes();
       renderItemButtons();
       renderRecipes();
+      localStorage.setItem('craftingItems', itemInput.value);
     }
 
-    // Auto update whenever something changes
+    clearAllBtn.addEventListener('click', () => {
+      document.querySelectorAll('#completedList .recipe input').forEach(cb => {
+        cb.checked = false;
+        moveRecipe(cb.parentElement, cb);
+      });
+    });
+
     itemInput.addEventListener('input', updateAll);
     twoItemCheckbox.addEventListener('change', updateAll);
     threeItemCheckbox.addEventListener('change', updateAll);
 
-    init = updateAll; // initial setup
-    init();
+    updateAll();
   </script>
 </body>
 </html>
